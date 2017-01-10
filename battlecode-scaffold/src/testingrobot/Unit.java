@@ -25,8 +25,8 @@ public abstract class Unit {
 	final int TURRETTHREAT = 4;
 	final int VIPERTHREAT = 2;
 	final int ZOMBIEDENTHREAT = 5;
-	final int THISTHREAT;
-	final int THISZOMBIETHREAT;
+	final double THISTHREAT;
+	final RobotType THISTYPE;
 	
 	class PathLoc {
 		
@@ -92,10 +92,10 @@ public abstract class Unit {
 		
 	}
 	
-	public Unit(RobotController rc, int thisThreat, int thisZombieThreat) {
+	public Unit(RobotController rc) {
 		this.RC = rc;
-		this.THISTHREAT = thisThreat;
-		this.THISZOMBIETHREAT = thisZombieThreat;
+		this.THISTYPE = RC.getType();
+		this.THISTHREAT = getUnitThreat(THISTYPE);
 	}
 	
 	public abstract void run() throws GameActionException; //actual run code for each class (only runs once each time the while loop is in the main code
@@ -192,52 +192,46 @@ public abstract class Unit {
 		ROUNDMAP[loc.x][loc.y] = round;
 	}
 	
-	public void updateMap(double[][] rubble, int[][] round) { //updates map from another map
-		for (int x = 0; x < trueWidth; x++) {
-			for (int y = 0; y < trueHeight; y++) {
-				if (round[x][y] > ROUNDMAP[x][y]) updateMap(rubble[x][y], new MapLocation(x, y), round[x][y]);
-			}
-		}
-	}
-	
-	public double getZombieThreat(int i) { //returns the current threat of a zombie
+	public double getZombieThreat(double i) { //returns the current threat of a zombie
 		return i * (1 + Math.floor(RC.getRoundNum() / 2) / 10);
 	}
 	
 	public double getViperThreat() { //returns the current threat of a viper to this unit
-		return getZombieThreat(THISZOMBIETHREAT) + VIPERTHREAT;
+		return unitToZombieThreat(THISTYPE) + VIPERTHREAT;
 	}
 	
-	public double getSquadThreat() { //returns the total threat of the squad
+	public double getUnitThreat(RobotType[] units) { //returns the total threat of a group of units
 		double threat = 0;
-		for (RobotController r : SQUAD) {
-			if (r.getType().equals(RobotType.GUARD)) threat += GUARDTHREAT;
-			else if (r.getType().equals(RobotType.SCOUT)) threat += SCOUTTHREAT;
-			else if (r.getType().equals(RobotType.SOLDIER)) threat += SOLDIERTHREAT;
-			else if (r.getType().equals(RobotType.TTM)) threat += TTMTHREAT;
-			else if (r.getType().equals(RobotType.TURRET)) threat += TURRETTHREAT;
-			else if (r.getType().equals(RobotType.VIPER)) threat += getViperThreat();
+		for (RobotType r : units) {
+			if (r.equals(RobotType.BIGZOMBIE)) threat += getZombieThreat(BIGZOMBIETHREAT);
+			else if (r.equals(RobotType.FASTZOMBIE)) threat += getZombieThreat(FASTZOMBIETHREAT);
+			else if (r.equals(RobotType.GUARD)) threat += GUARDTHREAT;
+			else if (r.equals(RobotType.RANGEDZOMBIE)) threat += getZombieThreat(RANGEDZOMBIETHREAT);
+			else if (r.equals(RobotType.SCOUT)) threat += SCOUTTHREAT;
+			else if (r.equals(RobotType.SOLDIER)) threat += SOLDIERTHREAT;
+			else if (r.equals(RobotType.STANDARDZOMBIE)) threat += getZombieThreat(STANDARDZOMBIETHREAT);
+			else if (r.equals(RobotType.TTM)) threat += TTMTHREAT;
+			else if (r.equals(RobotType.TURRET)) threat += TURRETTHREAT;
+			else if (r.equals(RobotType.VIPER)) threat += getViperThreat();
+			else if (r.equals(RobotType.ZOMBIEDEN)) threat += getZombieThreat(ZOMBIEDENTHREAT);
 		}
-		threat -= THISTHREAT;
 		return threat;
 	}
 	
-	public boolean checkThreat(RobotType[] bad, double nearbySquads) { //assesses threats and returns false if a retreat is needed
-		double goodThreat = nearbySquads + getSquadThreat();
-		double threat = 0;
-		for (int i = 0; i < bad.length; i++) {
-			if (bad[i].equals(RobotType.BIGZOMBIE)) threat += getZombieThreat(BIGZOMBIETHREAT);
-			else if (bad[i].equals(RobotType.FASTZOMBIE)) threat += getZombieThreat(FASTZOMBIETHREAT);
-			else if (bad[i].equals(RobotType.GUARD)) threat += GUARDTHREAT;
-			else if (bad[i].equals(RobotType.RANGEDZOMBIE)) threat += getZombieThreat(RANGEDZOMBIETHREAT);
-			else if (bad[i].equals(RobotType.SCOUT)) threat += SCOUTTHREAT;
-			else if (bad[i].equals(RobotType.SOLDIER)) threat += SOLDIERTHREAT;
-			else if (bad[i].equals(RobotType.STANDARDZOMBIE)) threat += STANDARDZOMBIETHREAT;
-			else if (bad[i].equals(RobotType.TTM)) threat += TTMTHREAT;
-			else if (bad[i].equals(RobotType.TURRET)) threat += TURRETTHREAT;
-			else if (bad[i].equals(RobotType.VIPER)) threat += getViperThreat();
-			else if (bad[i].equals(RobotType.ZOMBIEDEN)) threat += getZombieThreat(ZOMBIEDENTHREAT);
-		}
+	public double getUnitThreat(RobotType unit) { //returns the threat of a single unit
+		return getUnitThreat(new RobotType[]{unit});
+	}
+	
+	public double unitToZombieThreat(RobotType r) { //returns the threat of a unit being changed into a zombie
+		if (r.equals(RobotType.GUARD) || r.equals(RobotType.SOLDIER)) return getZombieThreat(STANDARDZOMBIETHREAT);
+		else if (r.equals(RobotType.SCOUT)) return getZombieThreat(FASTZOMBIETHREAT);
+		else if (r.equals(RobotType.TTM) || r.equals(RobotType.TURRET) || r.equals(RobotType.VIPER)) return getZombieThreat(RANGEDZOMBIETHREAT);
+		else return 0;
+	}
+	
+	public boolean checkThreat(RobotType[] bad, RobotType[] nearbyUnits) { //assesses threats and returns false if a retreat is needed
+		double goodThreat = getUnitThreat(nearbyUnits);
+		double threat = getUnitThreat(bad);
 		if (threat <= goodThreat) return true;
 		return false;
 	}
